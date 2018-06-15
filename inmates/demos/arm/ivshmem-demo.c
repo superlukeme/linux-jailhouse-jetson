@@ -22,7 +22,7 @@
 #if defined (CONFIG_MACH_JETSON_TX1)
 #define IVSHMEM_IRQ (186+32) /*get this value fron cell configuration vpci_irq_base + 32*/
 #elif defined (CONFIG_MACH_JETSON_TX2)
-#define IVSHMEM_IRQ (300+32) 
+#define IVSHMEM_IRQ (300+32+6)
 #endif
 
 #define MAX_NDEV	4
@@ -136,7 +136,7 @@ void inmate_main(void)
 		printk("IVSHMEM: Found %04x:%04x at %02x:%02x.%x\n",
 		       pci_read_config(bdf, PCI_CFG_VENDOR_ID, 2),
 		       pci_read_config(bdf, PCI_CFG_DEVICE_ID, 2),
-		       bdf >> 8, (bdf >> 3) & 0x1f, bdf & 0x3);
+		       bdf >> 8, (bdf >> 3) & 0x1f, bdf & 0x7);
 		class_rev = pci_read_config(bdf, 0x8, 4);
 		if (class_rev != (PCI_DEV_CLASS_OTHER << 24 |
 				  JAILHOUSE_SHMEM_PROTO_UNDEFINED << 8)) {
