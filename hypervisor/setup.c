@@ -21,14 +21,17 @@
 #include <generated/version.h>
 #include <asm/spinlock.h>
 
+#define DENVER_CPU_INIT (2)
+
 extern u8 __text_start[], __page_pool[];
 
 static const __attribute__((aligned(PAGE_SIZE))) u8 empty_page[PAGE_SIZE];
 
 static DEFINE_SPINLOCK(init_lock);
 static unsigned int master_cpu_id = -1;
-static volatile unsigned int initialized_cpus;
+static volatile unsigned int entered_cpus, initialized_cpus;
 static volatile int error;
+static volatile int denver_init_finished = 0;
 
 static void init_early(unsigned int cpu_id)
 {
@@ -140,6 +143,7 @@ int map_root_memory_regions(void)
 			err = mmio_subpage_register(&root_cell, mem);
 		else
 			err = arch_map_memory_region(&root_cell, mem);
+
 		if (err)
 			return err;
 	}
@@ -183,12 +187,32 @@ int entry(unsigned int cpu_id, struct per_cpu *cpu_data)
 
 	spin_lock(&init_lock);
 
-	if (master_cpu_id == -1) {
-		/* Only the master CPU, the first to enter this
-		 * function, performs system-wide initializations. */
+        /*
+         * If this CPU is last, make sure everything was committed before we
+         * signal the other CPUs spinning on entered_cpus that they can
+         * continue.
+         */
+        memory_barrier();
+        entered_cpus++;
+
+        spin_unlock(&init_lock);
+
+        while (entered_cpus < hypervisor_header.online_cpus)
+                cpu_relax();
+
+	if (cpu_id == DENVER_CPU_INIT) {
+		/* Only a selected DENVER CPU performs system-wide initializations. */
+		spin_lock(&init_lock); 
 		master = true;
 		init_early(cpu_id);
+		denver_init_finished = 1;
 	}
+
+	while(!denver_init_finished)
+		cpu_relax();
+
+	if(cpu_id != DENVER_CPU_INIT)
+		spin_lock(&init_lock); 
 
 	if (!error)
 		cpu_init(cpu_data);
